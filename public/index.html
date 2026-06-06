@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Draw Together</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital@0;1&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #181818;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --text-dim: #555;
+      --accent: #e8ff47;
+      --accent-dim: #b8cc30;
+      --danger: #ff4747;
+      --radius: 12px;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      touch-action: none;
+    }
+
+    /* ── SETUP SCREEN ── */
+    #setup-screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 32px;
+      padding: 32px;
+      background: var(--bg);
+      z-index: 100;
+    }
+
+    #setup-screen h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--accent);
+      text-align: center;
+      line-height: 1;
+    }
+
+    #setup-screen p {
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      text-align: center;
+      max-width: 280px;
+      line-height: 1.6;
+    }
+
+    .setup-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .field-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--text-dim);
+    }
+
+    .connect-btn {
+      width: 100%;
+      max-width: 340px;
+      padding: 16px;
+      background: var(--accent);
+      color: #0f0f0f;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .connect-btn:active { transform: scale(0.98); background: var(--accent-dim); }
+
+    /* ── MAIN APP ── */
+    #app {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    #app.visible { display: flex; }
+
+    /* Top bar */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    #room-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    #status-dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    #status-dot.error { background: var(--danger); }
+
+    /* Toolbar */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #toolbar::-webkit-scrollbar { display: none; }
+
+    /* Color swatches */
+    .swatch {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .swatch.active { border-color: var(--text); transform: scale(1.2); }
+
+    .divider {
+      width: 1px; height: 24px;
+      background: var(--border);
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+
+    /* Brush size */
+    #brush-label {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      flex-shrink: 0;
+    }
+
+    #brush-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 90px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      flex-shrink: 0;
+    }
+    #brush-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Clear button */
+    #clear-btn {
+      margin-left: auto;
+      padding: 6px 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      letter-spacing: 0.05em;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* Canvas area */
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* My canvas on top, their canvas below */
+    #canvas-theirs { z-index: 1; opacity: 0.7; }
+    #canvas-mine   { z-index: 2; }
+
+    /* Watermark layer labels */
+    #layer-hint {
+      position: absolute;
+      bottom: 12px; right: 14px;
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      pointer-events: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SETUP SCREEN ── -->
+<div id="setup-screen">
+  <h1>draw<br/>together</h1>
+  <p>Connect to your shared room to start drawing in real-time.</p>
+
+  <div class="setup-fields">
+    <div>
+      <div class="field-label">Server URL</div>
+      <input type="text" id="server-url" placeholder="wss://your-app.railway.app" />
+    </div>
+    <div>
+      <div class="field-label">Room ID</div>
+      <input type="text" id="room-id" placeholder="e.g. us" />
+    </div>
+  </div>
+
+  <button class="connect-btn" onclick="connect()">Connect →</button>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <div id="topbar">
+    <span id="room-label">room: —</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span id="status-text" style="font-size:0.6rem;color:var(--text-dim);letter-spacing:0.08em;">connecting</span>
+      <div id="status-dot"></div>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <!-- Color swatches -->
+    <div class="swatch active" style="background:#e8ff47" data-color="#e8ff47"></div>
+    <div class="swatch" style="background:#ff4f4f" data-color="#ff4f4f"></div>
+    <div class="swatch" style="background:#4faaff" data-color="#4faaff"></div>
+    <div class="swatch" style="background:#4fffb0" data-color="#4fffb0"></div>
+    <div class="swatch" style="background:#ff9f4f" data-color="#ff9f4f"></div>
+    <div class="swatch" style="background:#cc7fff" data-color="#cc7fff"></div>
+    <div class="swatch" style="background:#ffffff" data-color="#ffffff"></div>
+
+    <div class="divider"></div>
+
+    <span id="brush-label">SIZE</span>
+    <input type="range" id="brush-slider" min="2" max="32" value="6" />
+
+    <button id="clear-btn" onclick="clearCanvas()">CLEAR</button>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas-theirs"></canvas>
+    <canvas id="canvas-mine"></canvas>
+    <div id="layer-hint">your strokes on top</div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let ws = null;
+let drawing = false;
+let lastX = 0, lastY = 0;
+let currentColor = "#e8ff47";
+let brushSize = 6;
+let roomId = "";
+const THROTTLE_MS = 16; // ~60fps
+let lastSend = 0;
+
+// ── CANVAS SETUP ──
+const mineCanvas = document.getElementById("canvas-mine");
+const theirsCanvas = document.getElementById("canvas-theirs");
+const ctxMine = mineCanvas.getContext("2d");
+const ctxTheirs = theirsCanvas.getContext("2d");
+
+function resizeCanvases() {
+  const wrap = document.getElementById("canvas-wrap");
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  [mineCanvas, theirsCanvas].forEach(c => {
+    const imgData = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+    c.width = w; c.height = h;
+    c.getContext("2d").putImageData(imgData, 0, 0);
+  });
+}
+
+window.addEventListener("resize", resizeCanvases);
+
+// ── CONNECTION ──
+function connect() {
+  const serverUrl = document.getElementById("server-url").value.trim();
+  roomId = document.getElementById("room-id").value.trim() || "default";
+
+  if (!serverUrl) { alert("Enter a server URL"); return; }
+
+  const url = `${serverUrl}?room=${encodeURIComponent(roomId)}&role=app`;
+
+  document.getElementById("setup-screen").style.display = "none";
+  document.getElementById("app").classList.add("visible");
+  document.getElementById("room-label").textContent = `room: ${roomId}`;
+
+  // Wait for layout then resize
+  setTimeout(() => {
+    resizeCanvases();
+    openWS(url);
+  }, 50);
+}
+
+function openWS(url) {
+  setStatus("connecting");
+  ws = new WebSocket(url);
+
+  ws.onopen = () => setStatus("connected");
+  ws.onclose = () => {
+    setStatus("disconnected");
+    setTimeout(() => openWS(url), 3000); // auto-reconnect
+  };
+  ws.onerror = () => setStatus("error");
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleIncoming(msg);
+    } catch {}
+  };
+}
+
+function setStatus(state) {
+  const dot = document.getElementById("status-dot");
+  const txt = document.getElementById("status-text");
+  dot.className = "";
+  if (state === "connected") { dot.classList.add("connected"); txt.textContent = "live"; }
+  else if (state === "error") { dot.classList.add("error"); txt.textContent = "error"; }
+  else { txt.textContent = state; }
+}
+
+// ── INCOMING MESSAGES ──
+function handleIncoming(msg) {
+  if (msg.type === "draw") {
+    drawSegment(ctxTheirs, msg.x0, msg.y0, msg.x1, msg.y1, msg.color, msg.size);
+  } else if (msg.type === "clear") {
+    ctxTheirs.clearRect(0, 0, theirsCanvas.width, theirsCanvas.height);
+  }
+}
+
+// ── DRAWING ──
+function drawSegment(ctx, x0, y0, x1, y1, color, size) {
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = size;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke();
+}
+
+function getPos(e) {
+  const rect = mineCanvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return {
+    x: (src.clientX - rect.left) * (mineCanvas.width / rect.width),
+    y: (src.clientY - rect.top) * (mineCanvas.height / rect.height)
+  };
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  drawing = true;
+  const { x, y } = getPos(e);
+  lastX = x; lastY = y;
+}
+
+function moveDraw(e) {
+  e.preventDefault();
+  if (!drawing) return;
+  const { x, y } = getPos(e);
+
+  drawSegment(ctxMine, lastX, lastY, x, y, currentColor, brushSize);
+
+  const now = Date.now();
+  if (now - lastSend > THROTTLE_MS && ws?.readyState === 1) {
+    ws.send(JSON.stringify({
+      type: "draw",
+      x0: lastX / mineCanvas.width,
+      y0: lastY / mineCanvas.height,
+      x1: x / mineCanvas.width,
+      y1: y / mineCanvas.height,
+      color: currentColor,
+      size: brushSize
+    }));
+    lastSend = now;
+  }
+
+  lastX = x; lastY = y;
+}
+
+function endDraw(e) {
+  e.preventDefault();
+  drawing = false;
+}
+
+mineCanvas.addEventListener("mousedown", startDraw);
+mineCanvas.addEventListener("mousemove", moveDraw);
+mineCanvas.addEventListener("mouseup", endDraw);
+mineCanvas.addEventListener("touchstart", startDraw, { passive: false });
+mineCanvas.addEventListener("touchmove", moveDraw, { passive: false });
+mineCanvas.addEventListener("touchend", endDraw, { passive: false });
+
+// ── CLEAR ──
+function clearCanvas() {
+  ctxMine.clearRect(0, 0, mineCanvas.width, mineCanvas.height);
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: "clear" }));
+}
+
+// ── TOOLBAR ──
+document.querySelectorAll(".swatch").forEach(s => {
+  s.addEventListener("click", () => {
+    document.querySelectorAll(".swatch").forEach(x => x.classList.remove("active"));
+    s.classList.add("active");
+    currentColor = s.dataset.color;
+  });
+});
+
+document.getElementById("brush-slider").addEventListener("input", (e) => {
+  brushSize = parseInt(e.target.value);
+});
+
+// ── PWA SERVICE WORKER ──
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
