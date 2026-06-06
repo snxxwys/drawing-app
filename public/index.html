@@ -35,6 +35,49 @@
       touch-action: none;
     }
 
+    /* ── COLD START OVERLAY ── */
+    #cold-start {
+      position: fixed; inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+      background: var(--bg);
+      z-index: 200;
+    }
+    #cold-start.visible { display: flex; }
+
+    #cold-start h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    #cold-start p {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-align: center;
+      max-width: 240px;
+      line-height: 1.6;
+    }
+
+    #wake-timer {
+      font-size: 0.65rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* ── SETUP SCREEN ── */
     #setup-screen {
       position: fixed; inset: 0;
@@ -285,6 +328,14 @@
   <button class="connect-btn" onclick="connect()">Connect →</button>
 </div>
 
+<!-- ── COLD START OVERLAY ── -->
+<div id="cold-start">
+  <div class="spinner"></div>
+  <h2>Waking up server...</h2>
+  <p>Render's free tier sleeps when idle. First connection takes up to 50 seconds.</p>
+  <div id="wake-timer">0s</div>
+</div>
+
 <!-- ── MAIN APP ── -->
 <div id="app">
   <div id="topbar">
@@ -350,37 +401,76 @@ function resizeCanvases() {
 window.addEventListener("resize", resizeCanvases);
 
 // ── CONNECTION ──
+let wakeInterval = null;
+let wakeSeconds = 0;
+let wsUrl = "";
+let isFirstConnect = true;
+
 function connect() {
   const serverUrl = document.getElementById("server-url").value.trim();
   roomId = document.getElementById("room-id").value.trim() || "default";
 
   if (!serverUrl) { alert("Enter a server URL"); return; }
 
-  const url = `${serverUrl}?room=${encodeURIComponent(roomId)}&role=app`;
+  wsUrl = `${serverUrl}?room=${encodeURIComponent(roomId)}&role=app`;
 
   document.getElementById("setup-screen").style.display = "none";
   document.getElementById("app").classList.add("visible");
   document.getElementById("room-label").textContent = `room: ${roomId}`;
 
-  // Wait for layout then resize
   setTimeout(() => {
     resizeCanvases();
-    openWS(url);
+    openWS(wsUrl);
   }, 50);
+}
+
+function showColdStart() {
+  const overlay = document.getElementById("cold-start");
+  overlay.classList.add("visible");
+  wakeSeconds = 0;
+  clearInterval(wakeInterval);
+  wakeInterval = setInterval(() => {
+    wakeSeconds++;
+    document.getElementById("wake-timer").textContent = `${wakeSeconds}s`;
+  }, 1000);
+}
+
+function hideColdStart() {
+  document.getElementById("cold-start").classList.remove("visible");
+  clearInterval(wakeInterval);
 }
 
 function openWS(url) {
   setStatus("connecting");
+
+  // Show cold start overlay only on first connect attempt
+  if (isFirstConnect) {
+    showColdStart();
+  }
+
   ws = new WebSocket(url);
 
-  ws.onopen = () => setStatus("connected");
+  ws.onopen = () => {
+    isFirstConnect = false;
+    hideColdStart();
+    setStatus("connected");
+  };
+
   ws.onclose = () => {
     setStatus("disconnected");
-    setTimeout(() => openWS(url), 3000); // auto-reconnect
+    // On reconnects after drop, don't show cold start overlay
+    setTimeout(() => openWS(url), 3000);
   };
-  ws.onerror = () => setStatus("error");
+
+  ws.onerror = () => {
+    // Keep overlay up on error if still first connect
+    setStatus("error");
+  };
 
   ws.onmessage = (e) => {
+    // First message means we're live — hide overlay just in case
+    hideColdStart();
+    isFirstConnect = false;
     try {
       const msg = JSON.parse(e.data);
       handleIncoming(msg);

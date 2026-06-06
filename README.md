@@ -7,25 +7,29 @@ Two repos, two deploys. Takes about 15 minutes total.
 ## Folder Structure
 
 ```
-drawing-server/   → Deploy to Railway (WebSocket relay)
+drawing-server/   → Deploy to Render (WebSocket relay, free forever)
 drawing-app/      → Deploy to Vercel (PWA)
 ```
 
 ---
 
-## Step 1 — Deploy the Server to Railway
+## Step 1 — Deploy the Server to Render
 
 1. Push `drawing-server/` to a new GitHub repo (e.g. `drawing-server`)
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
-3. Select your `drawing-server` repo
-4. Railway auto-detects Node.js and runs `npm start`
-5. Go to **Settings → Networking → Generate Domain**
-6. Copy your domain — it'll look like `drawing-server-production.up.railway.app`
+2. Go to [render.com](https://render.com) → New → Web Service
+3. Connect your `drawing-server` GitHub repo
+4. Render auto-detects the `render.yaml` config — just hit Deploy
+5. Once deployed, copy your service URL — looks like:
+   `https://drawing-relay-server.onrender.com`
 
 Your WebSocket URL will be:
 ```
-wss://drawing-server-production.up.railway.app
+wss://drawing-relay-server.onrender.com
 ```
+
+> **Note:** Render free tier sleeps after 15 minutes of inactivity.
+> The app shows a "Waking up server..." overlay on first connect.
+> Usually takes 20–50 seconds. After that it's instant.
 
 ---
 
@@ -39,7 +43,7 @@ wss://drawing-server-production.up.railway.app
 
 ---
 
-## Step 3 — Add Icons (Optional but needed for PWA install)
+## Step 3 — Add Icons (needed for PWA install prompt)
 
 Generate icons at [realfavicongenerator.net](https://realfavicongenerator.net) and save:
 - `public/icon-192.png`
@@ -51,16 +55,10 @@ Generate icons at [realfavicongenerator.net](https://realfavicongenerator.net) a
 
 Open `drawing-app.vercel.app` on both phones.
 
-**Your phone:**
-- Server URL: `wss://drawing-server-production.up.railway.app`
-- Room ID: anything (e.g. `us`)
-- Role: `app` (hardcoded — this is your drawing side)
+- Server URL: `wss://drawing-relay-server.onrender.com`
+- Room ID: anything shared between both of you (e.g. `us`)
 
-**Her phone / ESP32:**
-- Same server URL and room ID
-- Role: `display`
-
-Both sides draw → see each other's strokes in real time.
+Both phones connect to the same room and see each other's strokes live.
 
 **To install as PWA:**
 - iOS: Safari → Share → Add to Home Screen
@@ -68,7 +66,7 @@ Both sides draw → see each other's strokes in real time.
 
 ---
 
-## Step 5 — Connect the ESP32
+## Step 5 — Connect the ESP32 (later)
 
 The ESP32 connects as `role=display` to the same WebSocket server.
 
@@ -79,35 +77,15 @@ Incoming message format:
 ```
 
 Coordinates are **normalized 0.0–1.0** — multiply by display width/height to get pixels.
-Color is hex string — parse to RGB for TFT_eSPI.
 
 ---
 
 ## How It Works
 
 ```
-Your phone (role=app)
-      │  draw packets (normalized coords)
-      ▼
-Railway WebSocket Server
-      │  relays to other role in same room
-      ▼
-Her phone / ESP32 (role=display)
-      │  draw packets back
-      ▼
-Railway WebSocket Server
-      │
-      ▼
-Your phone (sees her strokes on the "theirs" canvas layer)
+Your phone  ──draw packets──▶  Render WebSocket Server  ──▶  Her phone
+Her phone   ──draw packets──▶  Render WebSocket Server  ──▶  Your phone
 ```
 
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| Can't connect | Make sure URL starts with `wss://` not `https://` |
-| Strokes don't appear on other side | Check both are using the same room ID |
-| Railway keeps sleeping | Free tier stays awake while connections are active |
-| PWA won't install | Icons must exist at icon-192.png and icon-512.png |
+Both connect as `role=app` to the same room. The server relays everything
+between the two. The ESP32 later connects as `role=display`.
