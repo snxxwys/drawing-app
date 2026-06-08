@@ -8,584 +8,327 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Draw Together</title>
   <link rel="manifest" href="/manifest.json" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital@0;1&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
-
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg: #0f0f0f;
-      --surface: #181818;
-      --border: #2a2a2a;
-      --text: #e8e8e8;
-      --text-dim: #555;
-      --accent: #e8ff47;
-      --accent-dim: #b8cc30;
-      --danger: #ff4747;
-      --radius: 12px;
+      --bg: #0f0f0f; --surface: #181818; --border: #2a2a2a;
+      --text: #e8e8e8; --dim: #555; --accent: #e8ff47; --danger: #ff4747;
     }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; touch-action: none; }
 
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      touch-action: none;
+    /* SETUP */
+    #setup {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px; padding: 32px; z-index: 10;
     }
+    #setup h1 { font-family: 'Syne', sans-serif; font-size: clamp(2.5rem,10vw,4rem); font-weight: 800; color: var(--accent); letter-spacing: -0.03em; line-height: 1; text-align: center; }
+    #setup p { color: var(--dim); font-size: 0.75rem; text-align: center; }
+    .field { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 320px; }
+    .field label { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; }
+    input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.9rem; outline: none; }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--dim); }
+    #connect-btn { width: 100%; max-width: 320px; padding: 15px; background: var(--accent); color: #0f0f0f; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; cursor: pointer; }
+    #connect-btn:active { opacity: 0.85; }
 
-    /* ── COLD START OVERLAY ── */
-    #cold-start {
-      position: fixed; inset: 0;
-      display: none;
-      flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 20px;
-      background: var(--bg);
-      z-index: 200;
+    /* WAKE OVERLAY */
+    #wake {
+      position: fixed; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: var(--bg); z-index: 9;
     }
-    #cold-start.visible { display: flex; }
-
-    #cold-start h2 {
-      font-family: 'Syne', sans-serif;
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text);
-      letter-spacing: -0.01em;
-    }
-
-    #cold-start p {
-      font-size: 0.7rem;
-      color: var(--text-dim);
-      text-align: center;
-      max-width: 240px;
-      line-height: 1.6;
-    }
-
-    #wake-timer {
-      font-size: 0.65rem;
-      color: var(--accent);
-      letter-spacing: 0.1em;
-    }
-
-    .spinner {
-      width: 32px; height: 32px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
+    #wake.show { display: flex; }
+    .spinner { width: 30px; height: 30px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #wake h2 { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; }
+    #wake p { font-size: 0.7rem; color: var(--dim); text-align: center; max-width: 240px; line-height: 1.6; }
+    #wake-secs { font-size: 0.65rem; color: var(--accent); }
 
-    /* ── SETUP SCREEN ── */
-    #setup-screen {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 32px;
-      padding: 32px;
-      background: var(--bg);
-      z-index: 100;
-    }
+    /* APP */
+    #app { display: none; flex-direction: column; height: 100%; }
+    #app.show { display: flex; }
 
-    #setup-screen h1 {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(2rem, 8vw, 3.5rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--accent);
-      text-align: center;
-      line-height: 1;
-    }
+    /* TOPBAR */
+    #topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    #room-label { font-size: 0.65rem; letter-spacing: 0.1em; color: var(--dim); }
+    #status { display: flex; align-items: center; gap: 6px; }
+    #status-txt { font-size: 0.6rem; color: var(--dim); }
+    #dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); transition: background 0.3s; }
+    #dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    #dot.err { background: var(--danger); }
 
-    #setup-screen p {
-      color: var(--text-dim);
-      font-size: 0.8rem;
-      text-align: center;
-      max-width: 280px;
-      line-height: 1.6;
-    }
-
-    .setup-fields {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      width: 100%;
-      max-width: 340px;
-    }
-
-    .field-label {
-      font-size: 0.65rem;
-      letter-spacing: 0.12em;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.9rem;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    input[type="text"]:focus {
-      border-color: var(--accent);
-    }
-
-    input[type="text"]::placeholder {
-      color: var(--text-dim);
-    }
-
-    .connect-btn {
-      width: 100%;
-      max-width: 340px;
-      padding: 16px;
-      background: var(--accent);
-      color: #0f0f0f;
-      border: none;
-      border-radius: var(--radius);
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-      cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
-    }
-
-    .connect-btn:active { transform: scale(0.98); background: var(--accent-dim); }
-
-    /* ── MAIN APP ── */
-    #app {
-      display: none;
-      flex-direction: column;
-      height: 100%;
-    }
-
-    #app.visible { display: flex; }
-
-    /* Top bar */
-    #topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      gap: 8px;
-    }
-
-    #room-label {
-      font-size: 0.65rem;
-      letter-spacing: 0.1em;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      flex-shrink: 0;
-    }
-
-    #status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      flex-shrink: 0;
-      transition: background 0.3s;
-    }
-    #status-dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-    #status-dot.error { background: var(--danger); }
-
-    /* Toolbar */
-    #toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
+    /* TOOLBAR */
+    #toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
     #toolbar::-webkit-scrollbar { display: none; }
-
-    /* Color swatches */
-    .swatch {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: transform 0.15s, border-color 0.15s;
-    }
-    .swatch.active { border-color: var(--text); transform: scale(1.2); }
-
-    .divider {
-      width: 1px; height: 24px;
-      background: var(--border);
-      flex-shrink: 0;
-      margin: 0 2px;
-    }
-
-    /* Brush size */
-    #brush-label {
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      letter-spacing: 0.1em;
-      flex-shrink: 0;
-    }
-
-    #brush-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 90px;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      outline: none;
-      flex-shrink: 0;
-    }
-    #brush-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 16px; height: 16px;
-      border-radius: 50%;
-      background: var(--accent);
-      cursor: pointer;
-    }
-
-    /* Clear button */
-    #clear-btn {
-      margin-left: auto;
-      padding: 6px 14px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-dim);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      cursor: pointer;
-      flex-shrink: 0;
-      letter-spacing: 0.05em;
-      transition: border-color 0.15s, color 0.15s;
-    }
+    .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; flex-shrink: 0; transition: transform 0.15s; }
+    .swatch.on { border-color: #fff; transform: scale(1.2); }
+    .sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+    #size-label { font-size: 0.6rem; color: var(--dim); flex-shrink: 0; }
+    #brush { -webkit-appearance: none; appearance: none; width: 80px; height: 4px; background: var(--border); border-radius: 2px; outline: none; flex-shrink: 0; }
+    #brush::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+    #clear-btn { margin-left: auto; padding: 5px 12px; background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--dim); font-family: 'DM Mono', monospace; font-size: 0.65rem; cursor: pointer; flex-shrink: 0; }
     #clear-btn:hover { border-color: var(--danger); color: var(--danger); }
 
-    /* Canvas area */
-    #canvas-wrap {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-    }
-
-    canvas {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      cursor: crosshair;
-      touch-action: none;
-    }
-
-    /* My canvas on top, their canvas below */
-    #canvas-theirs { z-index: 1; opacity: 0.7; }
-    #canvas-mine   { z-index: 2; }
-
-    /* Watermark layer labels */
-    #layer-hint {
-      position: absolute;
-      bottom: 12px; right: 14px;
-      font-size: 0.6rem;
-      color: var(--text-dim);
-      letter-spacing: 0.08em;
-      pointer-events: none;
-      z-index: 10;
-    }
+    /* CANVAS */
+    #canvas-wrap { flex: 1; position: relative; overflow: hidden; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    #c-theirs { z-index: 1; }
+    #c-mine   { z-index: 2; }
   </style>
 </head>
 <body>
 
-<!-- ── SETUP SCREEN ── -->
-<div id="setup-screen">
-  <h1>draw<br/>together</h1>
-  <p>Connect to your shared room to start drawing in real-time.</p>
-
-  <div class="setup-fields">
-    <div>
-      <div class="field-label">Server URL</div>
-      <input type="text" id="server-url" placeholder="wss://your-app.railway.app" />
-    </div>
-    <div>
-      <div class="field-label">Room ID</div>
-      <input type="text" id="room-id" placeholder="e.g. us" />
-    </div>
+<div id="setup">
+  <h1>draw<br>together</h1>
+  <p>Connect to your shared room.</p>
+  <div class="field">
+    <label>Server URL</label>
+    <input id="url-input" type="text" placeholder="wss://your-app.onrender.com" autocomplete="off" autocorrect="off" />
   </div>
-
-  <button class="connect-btn" onclick="connect()">Connect →</button>
+  <div class="field">
+    <label>Room ID</label>
+    <input id="room-input" type="text" placeholder="us" autocomplete="off" autocorrect="off" />
+  </div>
+  <button id="connect-btn">Connect →</button>
 </div>
 
-<!-- ── COLD START OVERLAY ── -->
-<div id="cold-start">
+<div id="wake">
   <div class="spinner"></div>
-  <h2>Waking up server...</h2>
-  <p>Render's free tier sleeps when idle. First connection takes up to 50 seconds.</p>
-  <div id="wake-timer">0s</div>
+  <h2>Waking up server…</h2>
+  <p>Render's free tier sleeps when idle. Give it up to 50 seconds.</p>
+  <div id="wake-secs">0s</div>
 </div>
 
-<!-- ── MAIN APP ── -->
 <div id="app">
   <div id="topbar">
     <span id="room-label">room: —</span>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span id="status-text" style="font-size:0.6rem;color:var(--text-dim);letter-spacing:0.08em;">connecting</span>
-      <div id="status-dot"></div>
+    <div id="status">
+      <span id="status-txt">connecting</span>
+      <div id="dot"></div>
     </div>
   </div>
-
   <div id="toolbar">
-    <!-- Color swatches -->
-    <div class="swatch active" style="background:#e8ff47" data-color="#e8ff47"></div>
-    <div class="swatch" style="background:#ff4f4f" data-color="#ff4f4f"></div>
-    <div class="swatch" style="background:#4faaff" data-color="#4faaff"></div>
-    <div class="swatch" style="background:#4fffb0" data-color="#4fffb0"></div>
-    <div class="swatch" style="background:#ff9f4f" data-color="#ff9f4f"></div>
-    <div class="swatch" style="background:#cc7fff" data-color="#cc7fff"></div>
-    <div class="swatch" style="background:#ffffff" data-color="#ffffff"></div>
-
-    <div class="divider"></div>
-
-    <span id="brush-label">SIZE</span>
-    <input type="range" id="brush-slider" min="2" max="32" value="6" />
-
-    <button id="clear-btn" onclick="clearCanvas()">CLEAR</button>
+    <div class="swatch on" data-color="#e8ff47" style="background:#e8ff47"></div>
+    <div class="swatch" data-color="#ff4f4f" style="background:#ff4f4f"></div>
+    <div class="swatch" data-color="#4faaff" style="background:#4faaff"></div>
+    <div class="swatch" data-color="#4fffb0" style="background:#4fffb0"></div>
+    <div class="swatch" data-color="#ff9f4f" style="background:#ff9f4f"></div>
+    <div class="swatch" data-color="#cc7fff" style="background:#cc7fff"></div>
+    <div class="swatch" data-color="#ffffff" style="background:#ffffff"></div>
+    <div class="sep"></div>
+    <span id="size-label">SIZE</span>
+    <input type="range" id="brush" min="2" max="32" value="6" />
+    <button id="clear-btn">CLEAR</button>
   </div>
-
   <div id="canvas-wrap">
-    <canvas id="canvas-theirs"></canvas>
-    <canvas id="canvas-mine"></canvas>
-    <div id="layer-hint">your strokes on top</div>
+    <canvas id="c-theirs"></canvas>
+    <canvas id="c-mine"></canvas>
   </div>
 </div>
 
 <script>
+// ── ELEMENTS ──
+const setup   = document.getElementById("setup");
+const wakeEl  = document.getElementById("wake");
+const app     = document.getElementById("app");
+const cMine   = document.getElementById("c-mine");
+const cTheirs = document.getElementById("c-theirs");
+const ctxM    = cMine.getContext("2d");
+const ctxT    = cTheirs.getContext("2d");
+
 // ── STATE ──
-let ws = null;
-let drawing = false;
-let lastX = 0, lastY = 0;
-let currentColor = "#e8ff47";
-let brushSize = 6;
-let roomId = "";
-const THROTTLE_MS = 16; // ~60fps
-let lastSend = 0;
+let ws         = null;
+let wsUrl      = "";
+let drawing    = false;
+let lastX      = 0, lastY = 0;
+let color      = "#e8ff47";
+let brushSize  = 6;
+let lastSend   = 0;
+let firstConn  = true;
+let wakeTimer  = null;
+let wakeSecs   = 0;
+const THROTTLE = 16;
 
-// ── CANVAS SETUP ──
-const mineCanvas = document.getElementById("canvas-mine");
-const theirsCanvas = document.getElementById("canvas-theirs");
-const ctxMine = mineCanvas.getContext("2d");
-const ctxTheirs = theirsCanvas.getContext("2d");
-
-function resizeCanvases() {
+// ── CANVAS RESIZE ──
+function resize() {
   const wrap = document.getElementById("canvas-wrap");
   const w = wrap.clientWidth, h = wrap.clientHeight;
-  [mineCanvas, theirsCanvas].forEach(c => {
-    const imgData = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+  for (const c of [cMine, cTheirs]) {
+    // Save content
+    const tmp = document.createElement("canvas");
+    tmp.width = c.width; tmp.height = c.height;
+    tmp.getContext("2d").drawImage(c, 0, 0);
     c.width = w; c.height = h;
-    c.getContext("2d").putImageData(imgData, 0, 0);
-  });
+    c.getContext("2d").drawImage(tmp, 0, 0);
+  }
 }
+window.addEventListener("resize", resize);
 
-window.addEventListener("resize", resizeCanvases);
+// ── CONNECT ──
+document.getElementById("connect-btn").addEventListener("click", () => {
+  const raw = document.getElementById("url-input").value.trim();
+  const room = document.getElementById("room-input").value.trim() || "default";
+  if (!raw) { alert("Enter a server URL"); return; }
 
-// ── CONNECTION ──
-let wakeInterval = null;
-let wakeSeconds = 0;
-let wsUrl = "";
-let isFirstConnect = true;
+  // Auto-fix http -> ws protocol
+  wsUrl = raw.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  if (!wsUrl.startsWith("ws")) wsUrl = "wss://" + wsUrl;
+  wsUrl += (wsUrl.includes("?") ? "&" : "?") + "room=" + encodeURIComponent(room);
 
-function connect() {
-  const serverUrl = document.getElementById("server-url").value.trim();
-  roomId = document.getElementById("room-id").value.trim() || "default";
+  setup.style.display = "none";
+  app.classList.add("show");
+  document.getElementById("room-label").textContent = "room: " + room;
 
-  if (!serverUrl) { alert("Enter a server URL"); return; }
+  setTimeout(() => { resize(); openWS(); }, 50);
+});
 
-  wsUrl = `${serverUrl}?room=${encodeURIComponent(roomId)}`;
-
-  document.getElementById("setup-screen").style.display = "none";
-  document.getElementById("app").classList.add("visible");
-  document.getElementById("room-label").textContent = `room: ${roomId}`;
-
-  setTimeout(() => {
-    resizeCanvases();
-    openWS();
-  }, 50);
-}
-
-function showColdStart() {
-  const overlay = document.getElementById("cold-start");
-  overlay.classList.add("visible");
-  wakeSeconds = 0;
-  clearInterval(wakeInterval);
-  wakeInterval = setInterval(() => {
-    wakeSeconds++;
-    document.getElementById("wake-timer").textContent = `${wakeSeconds}s`;
-  }, 1000);
-}
-
-function hideColdStart() {
-  document.getElementById("cold-start").classList.remove("visible");
-  clearInterval(wakeInterval);
-}
-
+// ── WEBSOCKET ──
 function openWS() {
-  if (!wsUrl) return;
   setStatus("connecting");
-
-  if (isFirstConnect) showColdStart();
+  if (firstConn) startWake();
 
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    isFirstConnect = false;
-    hideColdStart();
-    setStatus("connected");
+    console.log("WS open");
+    firstConn = false;
+    stopWake();
+    setStatus("live");
   };
 
-  ws.onclose = () => {
+  ws.onmessage = (e) => {
+    stopWake();
+    firstConn = false;
+    try {
+      const msg = JSON.parse(e.data);
+      console.log("recv:", msg.type);
+      if (msg.type === "draw") {
+        // coords are normalized 0-1, scale to canvas size
+        stroke(ctxT,
+          msg.x0 * cTheirs.width,
+          msg.y0 * cTheirs.height,
+          msg.x1 * cTheirs.width,
+          msg.y1 * cTheirs.height,
+          msg.color, msg.size
+        );
+      } else if (msg.type === "clear") {
+        ctxT.clearRect(0, 0, cTheirs.width, cTheirs.height);
+      }
+    } catch(err) { console.error("parse err", err); }
+  };
+
+  ws.onclose = (e) => {
+    console.log("WS closed", e.code, e.reason);
     setStatus("disconnected");
     setTimeout(openWS, 3000);
   };
 
-  ws.onerror = () => {
+  ws.onerror = (e) => {
+    console.error("WS error", e);
     setStatus("error");
   };
-
-  ws.onmessage = (e) => {
-    hideColdStart();
-    isFirstConnect = false;
-    if (e.data === "ping") { ws.send("pong"); return; }
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === "connected") return;
-      handleIncoming(msg);
-    } catch {}
-  };
 }
 
-
-
-function setStatus(state) {
-  const dot = document.getElementById("status-dot");
-  const txt = document.getElementById("status-text");
-  dot.className = "";
-  if (state === "connected") { dot.classList.add("connected"); txt.textContent = "live"; }
-  else if (state === "error") { dot.classList.add("error"); txt.textContent = "error"; }
-  else { txt.textContent = state; }
-}
-
-// ── INCOMING MESSAGES ──
-function handleIncoming(msg) {
-  if (msg.type === "draw") {
-    const x0 = msg.x0 * theirsCanvas.width;
-    const y0 = msg.y0 * theirsCanvas.height;
-    const x1 = msg.x1 * theirsCanvas.width;
-    const y1 = msg.y1 * theirsCanvas.height;
-    drawSegment(ctxTheirs, x0, y0, x1, y1, msg.color, msg.size);
-  } else if (msg.type === "clear") {
-    ctxTheirs.clearRect(0, 0, theirsCanvas.width, theirsCanvas.height);
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
   }
 }
 
 // ── DRAWING ──
-function drawSegment(ctx, x0, y0, x1, y1, color, size) {
+function stroke(ctx, x0, y0, x1, y1, col, size) {
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   ctx.lineTo(x1, y1);
-  ctx.strokeStyle = color;
+  ctx.strokeStyle = col;
   ctx.lineWidth = size;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.stroke();
 }
 
-function getPos(e) {
-  const rect = mineCanvas.getBoundingClientRect();
+function pos(e) {
+  const r = cMine.getBoundingClientRect();
   const src = e.touches ? e.touches[0] : e;
   return {
-    x: (src.clientX - rect.left) * (mineCanvas.width / rect.width),
-    y: (src.clientY - rect.top) * (mineCanvas.height / rect.height)
+    x: (src.clientX - r.left) * (cMine.width / r.width),
+    y: (src.clientY - r.top)  * (cMine.height / r.height)
   };
 }
 
-function startDraw(e) {
-  e.preventDefault();
-  drawing = true;
-  const { x, y } = getPos(e);
-  lastX = x; lastY = y;
-}
+cMine.addEventListener("mousedown",  e => { drawing = true;  const p = pos(e); lastX = p.x; lastY = p.y; });
+cMine.addEventListener("mousemove",  e => { if (!drawing) return; draw(e); });
+cMine.addEventListener("mouseup",    () => { drawing = false; });
+cMine.addEventListener("mouseleave", () => { drawing = false; });
+cMine.addEventListener("touchstart", e => { e.preventDefault(); drawing = true;  const p = pos(e); lastX = p.x; lastY = p.y; }, { passive: false });
+cMine.addEventListener("touchmove",  e => { e.preventDefault(); if (!drawing) return; draw(e); }, { passive: false });
+cMine.addEventListener("touchend",   e => { e.preventDefault(); drawing = false; }, { passive: false });
 
-function moveDraw(e) {
-  e.preventDefault();
-  if (!drawing) return;
-  const { x, y } = getPos(e);
-
-  drawSegment(ctxMine, lastX, lastY, x, y, currentColor, brushSize);
+function draw(e) {
+  const { x, y } = pos(e);
+  stroke(ctxM, lastX, lastY, x, y, color, brushSize);
 
   const now = Date.now();
-  if (now - lastSend > THROTTLE_MS && ws?.readyState === 1) {
-    ws.send(JSON.stringify({
+  if (now - lastSend >= THROTTLE) {
+    send({
       type: "draw",
-      x0: lastX / mineCanvas.width,
-      y0: lastY / mineCanvas.height,
-      x1: x / mineCanvas.width,
-      y1: y / mineCanvas.height,
-      color: currentColor,
-      size: brushSize
-    }));
+      x0: lastX / cMine.width,
+      y0: lastY / cMine.height,
+      x1: x     / cMine.width,
+      y1: y     / cMine.height,
+      color, size: brushSize
+    });
     lastSend = now;
   }
 
   lastX = x; lastY = y;
 }
 
-function endDraw(e) {
-  e.preventDefault();
-  drawing = false;
-}
-
-mineCanvas.addEventListener("mousedown", startDraw);
-mineCanvas.addEventListener("mousemove", moveDraw);
-mineCanvas.addEventListener("mouseup", endDraw);
-mineCanvas.addEventListener("touchstart", startDraw, { passive: false });
-mineCanvas.addEventListener("touchmove", moveDraw, { passive: false });
-mineCanvas.addEventListener("touchend", endDraw, { passive: false });
-
 // ── CLEAR ──
-function clearCanvas() {
-  ctxMine.clearRect(0, 0, mineCanvas.width, mineCanvas.height);
-  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: "clear" }));
-}
+document.getElementById("clear-btn").addEventListener("click", () => {
+  ctxM.clearRect(0, 0, cMine.width, cMine.height);
+  send({ type: "clear" });
+});
 
 // ── TOOLBAR ──
 document.querySelectorAll(".swatch").forEach(s => {
   s.addEventListener("click", () => {
-    document.querySelectorAll(".swatch").forEach(x => x.classList.remove("active"));
-    s.classList.add("active");
-    currentColor = s.dataset.color;
+    document.querySelectorAll(".swatch").forEach(x => x.classList.remove("on"));
+    s.classList.add("on");
+    color = s.dataset.color;
   });
 });
-
-document.getElementById("brush-slider").addEventListener("input", (e) => {
-  brushSize = parseInt(e.target.value);
+document.getElementById("brush").addEventListener("input", e => {
+  brushSize = +e.target.value;
 });
 
-// ── PWA SERVICE WORKER ──
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(() => {});
+// ── STATUS ──
+function setStatus(state) {
+  const dot = document.getElementById("dot");
+  const txt = document.getElementById("status-txt");
+  dot.className = "";
+  if (state === "live")  { dot.classList.add("live"); txt.textContent = "live"; }
+  else if (state === "error") { dot.classList.add("err"); txt.textContent = "error"; }
+  else { txt.textContent = state; }
 }
+
+// ── WAKE OVERLAY ──
+function startWake() {
+  wakeEl.classList.add("show");
+  wakeSecs = 0;
+  clearInterval(wakeTimer);
+  wakeTimer = setInterval(() => {
+    document.getElementById("wake-secs").textContent = ++wakeSecs + "s";
+  }, 1000);
+}
+function stopWake() {
+  wakeEl.classList.remove("show");
+  clearInterval(wakeTimer);
+}
+
+// ── SERVICE WORKER ──
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
 </body>
 </html>
