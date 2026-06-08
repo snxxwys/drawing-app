@@ -197,14 +197,14 @@ function openWS() {
     setStatus("live");
   };
 
-  ws.onmessage = (e) => {
+  ws.onmessage = async (e) => {
     stopWake();
     firstConn = false;
     try {
-      const msg = JSON.parse(e.data);
+      const text = e.data instanceof Blob ? await e.data.text() : e.data;
+      const msg = JSON.parse(text);
       console.log("recv:", msg.type);
       if (msg.type === "draw") {
-        // coords are normalized 0-1, scale to canvas size
         stroke(ctxT,
           msg.x0 * cTheirs.width,
           msg.y0 * cTheirs.height,
