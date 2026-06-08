@@ -489,7 +489,11 @@ function setStatus(state) {
 // ── INCOMING MESSAGES ──
 function handleIncoming(msg) {
   if (msg.type === "draw") {
-    drawSegment(ctxTheirs, msg.x0, msg.y0, msg.x1, msg.y1, msg.color, msg.size);
+    const x0 = msg.x0 * theirsCanvas.width;
+    const y0 = msg.y0 * theirsCanvas.height;
+    const x1 = msg.x1 * theirsCanvas.width;
+    const y1 = msg.y1 * theirsCanvas.height;
+    drawSegment(ctxTheirs, x0, y0, x1, y1, msg.color, msg.size);
   } else if (msg.type === "clear") {
     ctxTheirs.clearRect(0, 0, theirsCanvas.width, theirsCanvas.height);
   }
