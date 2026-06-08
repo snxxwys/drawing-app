@@ -420,7 +420,7 @@ function connect() {
 
   setTimeout(() => {
     resizeCanvases();
-    openWS(wsUrl);
+    openWS();
   }, 50);
 }
 
@@ -440,15 +440,13 @@ function hideColdStart() {
   clearInterval(wakeInterval);
 }
 
-function openWS(url) {
+function openWS() {
+  if (!wsUrl) return;
   setStatus("connecting");
 
-  // Show cold start overlay only on first connect attempt
-  if (isFirstConnect) {
-    showColdStart();
-  }
+  if (isFirstConnect) showColdStart();
 
-  ws = new WebSocket(url);
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     isFirstConnect = false;
@@ -458,25 +456,26 @@ function openWS(url) {
 
   ws.onclose = () => {
     setStatus("disconnected");
-    // On reconnects after drop, don't show cold start overlay
-    setTimeout(() => openWS(url), 3000);
+    setTimeout(openWS, 3000);
   };
 
   ws.onerror = () => {
-    // Keep overlay up on error if still first connect
     setStatus("error");
   };
 
   ws.onmessage = (e) => {
-    // First message means we're live — hide overlay just in case
     hideColdStart();
     isFirstConnect = false;
+    if (e.data === "ping") { ws.send("pong"); return; }
     try {
       const msg = JSON.parse(e.data);
+      if (msg.type === "connected") return;
       handleIncoming(msg);
     } catch {}
   };
 }
+
+
 
 function setStatus(state) {
   const dot = document.getElementById("status-dot");
